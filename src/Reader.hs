@@ -5,7 +5,7 @@
 {- |
 Test out the Reader monad.
 -}
-module Reader(test2b, test2c, test2d, test2f, test2g, test2h) where
+module Reader(test2b, test2c, test2d, test2f, test2g, test2h, test2i) where
 
 import Control.Monad.Reader
 import qualified Data.IORef as Ref
@@ -19,7 +19,7 @@ runTests = do
   runTestTT test2f
   runTestTT test2g
   runTestTT test2h
-  
+  runTestTT test2i
 
 
 -- | Pass an Int though >>=, then change return type to a bool by comparing it to the Reader env.
@@ -130,9 +130,9 @@ test2g = TestCase
      assertEqual "test2g" (aRead * 2) aRead_accessed
   )
 
--- | Use 'local' on a ReaderT Int Int
+-- | Use 'local' on a Reader Int Int
 test2h = TestCase $ assertEqual
-  "test2e"
+  "test2h"
   (2)
   (let
      --ask for the env, which will have been modified by 'local'
@@ -144,3 +144,21 @@ test2h = TestCase $ assertEqual
    runReader (local (* 2) start  ) 1
    
   )
+
+
+-- | Show that local is just a convenience wrapper for modifying Reader env.
+test2i = TestCase $ assertEqual
+  "test2i"
+  ((2,2))
+  (let
+     --ask for the env, which will have been modified by 'local'
+     start :: Reader Int Int
+     start = ask
+     modifyEnv = \env -> env * 2   
+   in
+   --Both calls of this tuple will modfy the env with (* 2)
+   -- modfy env with local (* 2)        modify env prior to passing into Reader
+   (runReader (local (* 2) start  ) 1,  runReader start (modifyEnv 1))
+  )
+
+  
