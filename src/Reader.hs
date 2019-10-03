@@ -5,7 +5,7 @@
 {- |
 Test out the Reader monad.
 -}
-module Reader(test2b, test2b2, test2c, test2d, test2f, test2g) where
+module Reader(test2b, test2c, test2d, test2f, test2g, test2h) where
 
 import Control.Monad.Reader
 import qualified Data.IORef as Ref
@@ -14,154 +14,133 @@ import Test.HUnit
 
 runTests = do
   runTestTT test2b
-  runTestTT test2b2
   runTestTT test2c
   runTestTT test2d
   runTestTT test2f
   runTestTT test2g
-
+  runTestTT test2h
   
 
 
--- | Pass an Int though >>=, then ask for and add the environment to the Int.
+-- | Pass an Int though >>=, then change return type to a bool by comparing it to the Reader env.
+-- | Use >>= notations
 test2b = TestCase $ assertEqual
   "test2b"
   (True)
   (let
-     tryAsk ::  Int -> Bool
-     tryAsk env =
-
-       let
+     
          start :: Reader Int Double
          start = return 3
+         --The input to 'end' has to match the return val of 'start' to align the values through >>=
          end :: Double -> Reader Int Bool
          end int = do
            i <- ask
            return $ i == 5 
        
-       in
-       runReader (start >>= end)  env
    in
-   tryAsk 5
+       runReader (start >>= end)  5
   )
 
--- | same as 2b but get rid of the input to end.
--- | Had to change the >>= to >> in order to throw away the output from start, otherwise would not compile.
-test2b2 = TestCase $ assertEqual
-  "test2b"
-  (True)
-  (let
-     tryAsk ::  Int -> Bool
-     tryAsk env =
 
-       let
-         start :: Reader Int Double
-         start = return 3
-         end :: Reader Int Bool
-         end = do
-           i <- ask
-           return $ i == 5 
-       
-       in 
-       runReader (start >> end)  env
-   in
-   tryAsk 5
-  )
-
--- | Same as 2b but with Do notation
+-- | Pass an Int though >>=, then change return type to a bool by comparing it to the Reader env.
+-- | Use Do notation
 test2c = TestCase $ assertEqual
   "test2c"
   (True)
   (let
-     tryAsk ::  Reader Int Bool
-     tryAsk = do
-       
-       let
-         start :: Reader Int Double
-         start = return 3
-         end :: Double -> Reader Int Bool
-         end int = do
-           i <- ask
-           return $ i == 5 
-       
-       g <- start
-       e <- end g
-       return e
+     start :: Reader Int Double
+     start = return 3
+     end :: Double -> Reader Int Bool
+     end int = do
+       i <- ask
+       return $ i == 5 
    in
-   runReader tryAsk 5
+   runReader (do
+                 g <- start
+                 e <- end g
+                 return e)
+    5 --passed in Reader env
   )
 
--- | Same as 2c but with remove the input to 'end'
--- | This makes it like 2b2 where had to go from >>= to >>. In this case, just dropped the g in e <- end g.
+
+
+-- | Use 'ask' to access the Reader env.
 test2d = TestCase $ assertEqual
   "test2d"
   (True)
   (let
-     tryAsk ::  Reader Int Bool
-     tryAsk = do
-       
-       let
-         start :: Reader Int Double
-         start = return 3
          end :: Reader Int Bool
          end = do
            i <- ask
            return $ i == 5 
        
-       g <- start
-       e <- end 
-       return e
+       
    in
-   runReader tryAsk 5
+   runReader (end) 5
   )
 
--- | Use the fact that the return value gets passed along through the >>= operator to create some state.
--- | Will have an increment fx which adds 1 to the input, and passes it along. Then 'end' will see if the state is == env.
+
+-- | Use the Reader return value, passed through the >>= operator, to create some state.
 test2f = TestCase $ assertEqual
   "test2e"
   (True)
   (let
-     tryAsk :: Int -> Bool
-     tryAsk env = --
-       let
-         start :: Int -> Reader Int Int
-         start int = return int
-         increment :: Int -> Reader Int Int
-         increment int = return $ int + 1
-         isEqual :: Int -> Reader Int Bool
-         isEqual int = do
-           env <- ask
-           return $  int == env
-       
-       in 
-       runReader (start 1 >>= increment >>= increment >>= increment >>= isEqual) env
+      
+     start :: Reader Int Int
+     start = return 1
+     increment :: Int -> Reader Int Int
+     increment int = return $ int + 1
+     isEqual :: Int -> Reader Int Bool
+     isEqual int = do
+       return $  int == 4
+     ignoredEnv = 44  
    in
-   tryAsk 4
+   --'start' needs a starter input, and the rest get it from return value of prev. fx.
+   runReader (start  >>= increment >>= increment >>= increment >>= isEqual) ignoredEnv
+   
   )
-
-
 
 
 type RIO = ReaderT (Ref.IORef Int) IO ()
 
--- | Access the inner value of an IORef that is a ReaderT (IORef Int) IO () environment.
--- | This is RIO where env == Int
+-- | Access an IORef that is a ReaderT (IORef Int) IO () environment.
+-- | See the hello-haskell IORef module for more tests.
 test2g = TestCase
   (do
-     a <- Ref.newIORef 0
-     aRead <- Ref.readIORef a
+     --This is done in IO, so no need for lifting.
+     a <- Ref.newIORef 2
+     aRead <- Ref.readIORef        a
+ -- :: Int <- (IORef a -> IO a) -> IORef Int -> IO Int
      let
+         --Gets at the underlying Int of the IORef, and uses that value to modify the IOREf.
+         --Note that readIORef now needs lifting into the ReaderT monad.
          accessTheIORefValue :: RIO
          accessTheIORefValue = do
-           a <- ask -- :: ReaderT (Ref.IORef Int) IO a0
-           a' <- liftIO $ Ref.readIORef a
-           return ()
+              a <- ask
+   -- IORef Int <- ReaderT (IORef Int) IO ()
+              a' <- liftIO $          Ref.readIORef        a
+       -- :: Int <- (IO a -> m a) ->  (IORef a -> IO a) -> IORef Int -> IO Int
+              liftIO $ Ref.modifyIORef a (a' * ) --multiply by itself. So (* 2)
+              return ()
            
-     
+     --access the value. Does it work with IO because the final value in RIO is IO?
      runReaderT (accessTheIORefValue) a
+     
      aRead_accessed <- Ref.readIORef a
-     assertEqual "test2g" (aRead) aRead_accessed
+     assertEqual "test2g" (aRead * 2) aRead_accessed
   )
 
-
-
+-- | Use 'local' on a ReaderT Int Int
+test2h = TestCase $ assertEqual
+  "test2e"
+  (2)
+  (let
+     --ask for the env, which will have been modified by 'local'
+     start :: Reader Int Int
+     start = ask
+       
+   in
+   
+   runReader (local (* 2) start  ) 1
+   
+  )
