@@ -5,13 +5,14 @@
 {- |
 Test out the Reader monad.
 -}
-module Reader(test2b, test2c, test2d, test2f, test2g, test2h, test2i) where
+module Reader where
 
 import Control.Monad.Reader
 import qualified Data.IORef as Ref
 
 import Test.HUnit
 
+-- | Run the HUnit tests
 runTests = do
   runTestTT test2b
   runTestTT test2c
@@ -23,7 +24,7 @@ runTests = do
 
 
 -- | Pass an Int though >>=, then change return type to a bool by comparing it to the Reader env.
--- | Use >>= notations
+--  Use >>= notations
 test2b = TestCase $ assertEqual
   "test2b"
   (True)
@@ -43,7 +44,7 @@ test2b = TestCase $ assertEqual
 
 
 -- | Pass an Int though >>=, then change return type to a bool by comparing it to the Reader env.
--- | Use Do notation
+--  Use Do notation
 test2c = TestCase $ assertEqual
   "test2c"
   (True)
@@ -104,7 +105,7 @@ test2f = TestCase $ assertEqual
 type RIO = ReaderT (Ref.IORef Int) IO ()
 
 -- | Access an IORef that is a ReaderT (IORef Int) IO () environment.
--- | See the hello-haskell IORef module for more tests.
+--  See the hello-haskell IORef module for more tests.
 test2g = TestCase
   (do
      --This is done in IO, so no need for lifting.
