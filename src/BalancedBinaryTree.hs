@@ -1,3 +1,5 @@
+-- {-# LANGUAGE DatatypeContexts #-}
+--{-#LANGUAGE GADTs #-}
 {- | Build balanced binary Data.Map.Strict from the containers package on stackage.
 
 Will first make a simple tree of Int.
@@ -49,6 +51,9 @@ runTests = do
   runTestTT testPeriodOrd6
 
   runTestTT testPeriodMap1
+
+  runTestTT testMapToList1
+  runTestTT testMapToList2
 
 -- * Get a strict Map up and running
 --
@@ -139,6 +144,7 @@ test6 = TestCase $ assertEqual
 
 -- | Represents a financial reporting period.
 data Quarter = Q1 | Q2 | Q3 | Q4
+  deriving Show
 
 instance Eq Quarter where
   Q1 == Q1 = True
@@ -258,6 +264,9 @@ test15 = TestCase $ assertEqual
 data Year = Year {_year :: Int}
  deriving (Eq, Ord)
 
+instance Show Year where
+  show (Year year) = "Y" ++ (show year)
+
 -- | Year 1 == Year 2
 --
 -- > False
@@ -302,15 +311,19 @@ testYear5 = TestCase $ assertEqual
 -- ** Now combine the Year and Quater into a single Ordered datatype
 
 -- | Combine a Year, Quarter, and a polymorphic value being reported.
-data Period a = Period {_period_val :: a, _period_year :: Year, _period_quarter :: Quarter}
-  --deriving (Eq, Ord)
-  -- can't derive these, as it also uses val.
+data Period = Period  {_period_year :: Year, _period_quarter :: Quarter}
+  
+  
+  -- can't derive (Eq, Ord), as it also uses val.
 
-instance Eq (Period a) where
-  (Period _ year quarter) == (Period _ year' quarter') = (year == year') && (quarter == quarter')
+instance Show Period where
+  show (Period year quarter) = "Period " ++ (show year) ++ " " ++ (show quarter)
 
-instance Ord (Period a) where
-  (Period _ year quarter) `compare` (Period _ year' quarter') =
+instance Eq Period where
+  (Period year quarter) == (Period year' quarter') = (year == year') && (quarter == quarter')
+
+instance Ord Period  where
+  (Period year quarter) `compare` (Period year' quarter') =
     case year == year' of
       True  ->
         quarter `compare` quarter'
@@ -324,7 +337,7 @@ instance Ord (Period a) where
 testPeriod1 = TestCase $ assertEqual
   "testPeriod1"
   (True)
-  (Period 1 (Year 2) Q1 == Period 1 (Year 2) Q1)
+  (Period (Year 2) Q1 == Period (Year 2) Q1)
 
 -- | All values are EQ, except the polymorphic value. 
 --
@@ -333,7 +346,7 @@ testPeriod1 = TestCase $ assertEqual
 testPeriod2 = TestCase $ assertEqual
   "testPeriod2"
   (True)
-  (Period 1111 (Year 2) Q1 == Period 1 (Year 2) Q1)
+  (Period (Year 2) Q1 == Period (Year 2) Q1)
 
 -- | All values are EQ, except the Year.
 --
@@ -342,7 +355,7 @@ testPeriod2 = TestCase $ assertEqual
 testPeriod3 = TestCase $ assertEqual
   "testPeriod3"
   (False)
-  ((Period 1 (Year 1) Q1) == (Period 1 (Year 2) Q1))
+  ((Period (Year 1) Q1) == (Period (Year 2) Q1))
 
 -- | All values are EQ, except the Quarter.
 --
@@ -351,7 +364,7 @@ testPeriod3 = TestCase $ assertEqual
 testPeriod4 = TestCase $ assertEqual
   "testPeriod4"
   (False)
-  ((Period 1 (Year 1) Q1) == (Period 1 (Year 1) Q2))
+  ((Period (Year 1) Q1) == (Period (Year 1) Q2))
 
 
 
@@ -362,7 +375,7 @@ testPeriod4 = TestCase $ assertEqual
 testPeriodOrd1 = TestCase $ assertEqual
   "testPeriodOrd1"
   (EQ)
-  (Period 1 (Year 1) Q1 `compare` Period 1 (Year 1) Q1)
+  (Period (Year 1) Q1 `compare` Period (Year 1) Q1)
 
 -- | All values are equal, except the polymorphic val.
 --
@@ -371,7 +384,7 @@ testPeriodOrd1 = TestCase $ assertEqual
 testPeriodOrd2 = TestCase $ assertEqual
   "testPeriodOrd2"
   (EQ)
-  (Period 2 (Year 2) Q1 `compare` Period 1 (Year 2) Q1)
+  (Period (Year 2) Q1 `compare` Period (Year 2) Q1)
 
 -- | All values are equal, except the Year.
 --
@@ -380,7 +393,7 @@ testPeriodOrd2 = TestCase $ assertEqual
 testPeriodOrd4 = TestCase $ assertEqual
   "testPeriodOrd4"
   (LT)
-  (Period 1 (Year 1) Q1 `compare` Period 1 (Year 2) Q1)
+  (Period (Year 1) Q1 `compare` Period (Year 2) Q1)
 
 -- | All values are equal, except the Quarter is LT.
 --
@@ -389,7 +402,7 @@ testPeriodOrd4 = TestCase $ assertEqual
 testPeriodOrd5 = TestCase $ assertEqual
   "testPeriodOrd5"
   (LT)
-  (Period 1 (Year 1) Q1 `compare` Period 1 (Year 1) Q2)
+  (Period (Year 1) Q1 `compare` Period (Year 1) Q2)
 
 -- | The Year is GT while Quarter is LT.
 --
@@ -398,17 +411,58 @@ testPeriodOrd5 = TestCase $ assertEqual
 testPeriodOrd6 = TestCase $ assertEqual
   "testPeriodOrd6"
   (GT)
-  (Period 1 (Year 11) Q1 `compare` Period 1 (Year 1) Q2)
+  (Period (Year 11) Q1 `compare` Period (Year 1) Q2)
 
 -- ** Now do some mapping of the Period
 -- $periodMapping
 -- See that Periods are inserted into a Map properly, according to their Eq, Ord properties.
+-- Only did one test, to see that it follows the Ord and Eq instances.
 
--- | Insert with Years in descending order. All else Eq.
+
+-- | Load the Map with [items ] in descending order and see that they are now in ascending order.
 --
--- >>> Map.elems $ Map.fromList [(Period 11 (Year 11) Q1), (Period 1 (Year 1) Q1)]
--- > GT
+-- >>> Map.elems $ Map.fromList [((Period (Year 11) Q1),1), ((Period (Year 1) Q2),2)]
+-- > [2,1]
 testPeriodMap1 = TestCase $ assertEqual
   "testPeriodMap1"
-  ([])
-  (Map.elems $ Map.fromList [(Period 1 (Year 11) Q1), (Period 1 (Year 1) Q2)])
+  ([2,1])
+  (Map.elems $ Map.fromList [((Period (Year 11) Q1),1), ((Period (Year 1) Q2),2)])
+
+
+-- ** Now do some traversal of the Period Map
+-- $traversal
+-- Create a map that has multiple years, each of which has multiple Quarters and work on each group of years to produce an answer
+-- that converts values to Q4 values.
+
+-- *** First convert to a list.
+-- $toList
+
+-- | Create map from descending list and see that toList produces an ascending list
+testMapToList1 = TestCase $ assertEqual
+  "testMapToList1"
+  ([(Period (Year 1) Q2,2),(Period (Year 11) Q1,1)])
+  ( Map.toList $ Map.fromList [((Period (Year 11) Q1),1), ((Period (Year 1) Q2),2)])
+
+-- | Create map with multipe years, each year with multiple Quarters, and convert to a  [(Period,val)] where all Periods are Q4 adjusted values.
+--
+-- >>>  Map.toList $ toQ4List list (Map.empty)
+-- > [(Period (Year 1) Q4,4.0),(Period (Year 2) Q4,26.66)]
+testMapToList2 = TestCase $ assertEqual
+  "testMapToList2"
+  ([(Period (Year 1) Q4,4.0),(Period (Year 2) Q4,26.66)])
+  (let
+      list = Map.toList $ Map.fromList [((Period (Year 1) Q1),1), ((Period (Year 1) Q2),2), ((Period (Year 2) Q3),20)]
+      --newType Mapper ::  Map.Map Period Int
+      --mapper = Map.empty
+      toQ4List :: [(Period,Double)] -> (Map.Map Period Double) ->  (Map.Map Period Double)
+      toQ4List ((Period year Q1, val):xs) mapper = toQ4List xs (Map.insert (Period year Q4) (val * 4) mapper)
+      toQ4List ((Period year Q2, val):xs) mapper = toQ4List xs (Map.insert (Period year Q4) (val * 2) mapper)
+      toQ4List ((Period year Q3, val):xs) mapper = toQ4List xs (Map.insert (Period year Q4) (val * 1.333) mapper)
+      toQ4List ((Period year Q4, val):xs) mapper = toQ4List xs (Map.insert (Period year Q4) (val) mapper)
+      toQ4List [] mapper = mapper 
+      
+   in 
+   Map.toList $ toQ4List list (Map.empty) 
+  )
+
+
