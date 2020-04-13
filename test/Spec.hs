@@ -1,2 +1,7 @@
-main :: IO ()
-main = putStrLn "Test suite not yet implemented"
+
+
+import qualified MathToGenProBkCh1 as MathToGenProBkCh1
+
+
+main = do
+  MathToGenProBkCh1.runTests

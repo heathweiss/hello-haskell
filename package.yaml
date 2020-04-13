@@ -29,6 +29,7 @@ dependencies:
 - exceptions >= 0.10.4
 - rio >= 0.1.12.0
 - unliftio >= 0.2.12.1
+- gauge >= 0.2.5
 
 library:
   source-dirs: src
